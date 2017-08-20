@@ -10,7 +10,7 @@
 // Global variables
 volatile uint8_t minutes = 0;
 volatile uint8_t seconds = 0;
-volatile uint8_t counter = 0;
+volatile bool updateSeconds = false;
 
 // Interrupt Service Routine (ISR)
 // Pin change interrupt
@@ -19,6 +19,8 @@ ISR(PCINT0_vect) {
 
 // Timer 1 interrupt
 ISR(TIMER1_COMPA_vect) {
+    seconds++;
+    updateSeconds = true;
 }
 
 void setup() {
@@ -37,9 +39,28 @@ void setup() {
     
     // Enable interrupts
     sei();
+
+    // Clear shift registers
+    shiftOut(DS, SH_CP, MSBFIRST, 0x00);
+    shiftLatch();
 }
 
+
+boolean test = true;
 void loop() {
+    if (updateSeconds) {
+        shiftOut(DS, SH_CP, MSBFIRST, seconds);
+        shiftLatch();
+        updateSeconds = false;
+    }
+
+//    if (updateSeconds) {
+//        digitalWrite(DS, test ? HIGH : LOW);
+//        shiftClock();
+//        shiftLatch();
+//        test = !test;
+//        updateSeconds = false;
+//    }
 }
 
 static inline void setupTimer1() {
@@ -52,7 +73,7 @@ static inline void setupTimer1() {
     // Set clock prescaler to 16384
     TCCR1 |= (1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10);
     OCR1C = 61;                 // Set compare match value to 61
-    TIMSK |= (1 << OCIE1A)      // Enable timer interrupt
+    TIMSK |= (1 << OCIE1A);     // Enable timer interrupt
 }
 
 //static inline void setupTimer1Async() {          
@@ -69,5 +90,15 @@ static inline void setupPCInterrupt() {
     GIMSK |= (1 << PCIE);       // Enable pin change interrupt (PCI)
     PCMSK |= (1 << PCINT3);     // Enable pin change interrupt on PCINT3
     PCMSK |= (1 << PCINT4);     // Enable pin change interrupt on PCINT4
+}
+
+void shiftClock() {
+    digitalWrite(SH_CP, HIGH);
+    digitalWrite(SH_CP, LOW);
+}
+
+void shiftLatch() {
+    digitalWrite(ST_CP, HIGH);
+    digitalWrite(ST_CP, LOW);
 }
 
