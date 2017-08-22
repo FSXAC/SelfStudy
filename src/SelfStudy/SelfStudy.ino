@@ -19,7 +19,12 @@ ISR(PCINT0_vect) {
 
 // Timer 1 interrupt
 ISR(TIMER1_COMPA_vect) {
-    seconds++;
+    if (seconds == 59) {
+        seconds = 0;
+        minutes++;
+    else {
+        seconds++;
+    }
     updateSeconds = true;
 }
 
@@ -52,6 +57,10 @@ void loop() {
         shiftOut(DS, SH_CP, MSBFIRST, seconds);
         shiftLatch();
         updateSeconds = false;
+
+	if (minutes == 25 && seconds == 0) {
+            // switch modes here
+	}
     }
 
 //    if (updateSeconds) {
@@ -72,7 +81,8 @@ static inline void setupTimer1() {
     // 61 * 16.384ms = 999.424ms (close enough)
     // Set clock prescaler to 16384
     TCCR1 |= (1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10);
-    OCR1C = 61;                 // Set compare match value to 61
+    //OCR1C = 61;                 // Set compare match value to 61
+    OCR1C = 10;
     TIMSK |= (1 << OCIE1A);     // Enable timer interrupt
 }
 
