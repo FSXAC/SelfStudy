@@ -143,7 +143,7 @@ static inline void setupTimer1() {
     // 61 * 16.384ms = 999.424ms (close enough)
     // Set clock prescaler to 16384
     TCCR1 |= (1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10);
-    OCR1C = 3;                 // Set compare match value to 61
+    OCR1C = 61;                 // Set compare match value to 61
     TIMSK |= (1 << OCIE1A);     // Enable timer interrupt
 }
 
