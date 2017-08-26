@@ -7,10 +7,14 @@
 #define BTN_A 3
 #define BTN_B 4
 
+// Other constants
+#define SECONDS_IN_MIN 60
+
 // Global variables
 volatile uint8_t minutes = 0;
 volatile uint8_t seconds = 0;
-volatile bool updateSeconds = false;
+volatile bool secondsChanged = false;
+bool workMode = true;
 
 // Interrupt Service Routine (ISR)
 // Pin change interrupt
@@ -19,13 +23,13 @@ ISR(PCINT0_vect) {
 
 // Timer 1 interrupt
 ISR(TIMER1_COMPA_vect) {
-    if (seconds == 59) {
+    if (seconds == SECONDS_IN_MIN - 1) {
         seconds = 0;
         minutes++;
-    else {
+    } else {
         seconds++;
     }
-    updateSeconds = true;
+    secondsChanged = true;
 }
 
 void setup() {
@@ -50,26 +54,53 @@ void setup() {
     shiftLatch();
 }
 
-
-boolean test = true;
+uint8_t workMinutes = 25;
+uint8_t breakMinutes = 5;
+uint16_t workTime = SECONDS_IN_MIN * workMinutes;
+uint16_t breakTime = SECONDS_IN_MIN * breakMinutes;
 void loop() {
-    if (updateSeconds) {
-        shiftOut(DS, SH_CP, MSBFIRST, seconds);
+    if (secondsChanged) {
+        uint8_t outputLED = 0x00;
+        uint8_t progress = 0x00;
+
+        if (workMode) {
+
+            // progress in integer = time elapsed (seconds) * 8 lights / total time
+            progress = ((int)minutes * SECONDS_IN_MIN + seconds) * 8 / workTime;
+
+            if (minutes == workMinutes) {
+                minutes = 0;
+                workMode = false;
+            }
+
+        } else {
+            progress = ((int)minutes * SECONDS_IN_MIN + seconds) * 8 / breakTime;
+
+            if (minutes == breakMinutes) {
+                minutes = 0;
+                workMode = true;
+            }
+        }
+
+
+        // Shift into LEDs
+        for (unsigned char i = 0; i < progress; i++) {
+            outputLED |= 0x01 << i;
+        }
+
+        // Blink on the next LED to indicate progress
+        if (seconds % 2) {
+            outputLED |= 0x01 << progress;
+        } else {
+            outputLED &= ~(0x01 << progress);
+        }
+
+        // Output to shift registers
+        shiftOut(DS, SH_CP, MSBFIRST, outputLED);
+        // shiftOut(DS, SH_CP, MSBFIRST, minutes);
         shiftLatch();
-        updateSeconds = false;
-
-	if (minutes == 25 && seconds == 0) {
-            // switch modes here
-	}
+        secondsChanged = false;
     }
-
-//    if (updateSeconds) {
-//        digitalWrite(DS, test ? HIGH : LOW);
-//        shiftClock();
-//        shiftLatch();
-//        test = !test;
-//        updateSeconds = false;
-//    }
 }
 
 static inline void setupTimer1() {
@@ -81,8 +112,7 @@ static inline void setupTimer1() {
     // 61 * 16.384ms = 999.424ms (close enough)
     // Set clock prescaler to 16384
     TCCR1 |= (1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10);
-    //OCR1C = 61;                 // Set compare match value to 61
-    OCR1C = 10;
+    OCR1C = 61;                 // Set compare match value to 61
     TIMSK |= (1 << OCIE1A);     // Enable timer interrupt
 }
 
