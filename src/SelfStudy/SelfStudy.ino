@@ -54,10 +54,14 @@ void setup() {
     shiftLatch();
 }
 
-uint8_t workMinutes = 25;
-uint8_t breakMinutes = 5;
+uint8_t workMinutes = 15;
+uint8_t breakMinutes = 3;
 uint16_t workTime = SECONDS_IN_MIN * workMinutes;
 uint16_t breakTime = SECONDS_IN_MIN * breakMinutes;
+
+bool playBreakTimeAnimation = false;
+bool playWorkTimeAnimation = true;
+
 void loop() {
     if (secondsChanged) {
         uint8_t outputLED = 0x00;
@@ -71,6 +75,7 @@ void loop() {
             if (minutes == workMinutes) {
                 minutes = 0;
                 workMode = false;
+                playBreakTimeAnimation = true;
             }
 
         } else {
@@ -79,6 +84,7 @@ void loop() {
             if (minutes == breakMinutes) {
                 minutes = 0;
                 workMode = true;
+                playWorkTimeAnimation = true;
             }
         }
 
@@ -97,11 +103,36 @@ void loop() {
 
         // Output to shift registers
         shiftOut(DS, SH_CP, MSBFIRST, outputLED);
-        // shiftOut(DS, SH_CP, MSBFIRST, minutes);
         shiftLatch();
         secondsChanged = false;
     }
+
+    if (playBreakTimeAnimation) breaktimeAnimation();
+    if (playWorkTimeAnimation) worktimeAnimation();
 }
+
+
+// Play a two second animation
+void breaktimeAnimation() {
+    for (uint8_t i = 0; i < 40; i++) {
+        digitalWrite(DS, ((i / 8) % 2) ? HIGH : LOW);
+        shiftClock();
+        shiftLatch();
+        delay(50);
+    }
+    playBreakTimeAnimation = false;
+}
+
+void worktimeAnimation() {
+    for (uint8_t i = 0; i < 40; i++) {
+        shiftOut(DS, SH_CP, MSBFIRST, ((i / 4) % 2) ? 0xFF : 0x00);
+        shiftLatch();
+        delay(50);
+    }
+
+    playWorkTimeAnimation = false;
+}
+
 
 static inline void setupTimer1() {
     TCCR1 |= (1 << CTC1);       // Set clear timer on compare match
@@ -112,19 +143,9 @@ static inline void setupTimer1() {
     // 61 * 16.384ms = 999.424ms (close enough)
     // Set clock prescaler to 16384
     TCCR1 |= (1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10);
-    OCR1C = 61;                 // Set compare match value to 61
+    OCR1C = 3;                 // Set compare match value to 61
     TIMSK |= (1 << OCIE1A);     // Enable timer interrupt
 }
-
-//static inline void setupTimer1Async() {          
-//    PLLCSR |= (1 << PLLE);      // Enables PLLE
-//    delayMicroseconds(100);     // Wait for PLL to stablize
-//
-//    // Poll PLOCK until it turns on
-//    while (!(PLLCSR & (1 << PLOCK)));
-//    
-//    PLLCSR |= (1 << PCKE);      // Enables PCKE
-//}
 
 static inline void setupPCInterrupt() {
     GIMSK |= (1 << PCIE);       // Enable pin change interrupt (PCI)
